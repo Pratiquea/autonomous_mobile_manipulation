@@ -14,7 +14,7 @@ def movebase_client():
  
    # Waits until the action server has started up and started listening for goals.
     client.wait_for_server()
-
+    print("wating for action server")
    # Creates a new goal with the MoveBaseGoal constructor
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = "map"
@@ -29,6 +29,7 @@ def movebase_client():
 
    # Sends the goal to the action server.
     client.send_goal(goal)
+    print("goal sent")
    # Waits for the server to finish performing the action.
     wait = client.wait_for_result()
    # If the result doesn't arrive, assume the Server is not available
