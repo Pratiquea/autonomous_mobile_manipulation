@@ -98,13 +98,12 @@
       <uri>model://sun</uri>
     </include>
     <model name="my_mesh">
-      <pose>1 2.5 0  1.57 0 0</pose>
+      <pose>1 2.5 0  0 0 0</pose>
       <static>true</static>
       <link name="body">
         <visual name="visual">
           <geometry>
             <mesh>
-            <scale>0.0005 0.0005 0.0005 </scale>
                 <uri>model://tank/meshes/ElevatedTank.dae</uri>
             </mesh>
           </geometry>
