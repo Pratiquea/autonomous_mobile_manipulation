@@ -45,8 +45,8 @@ find_package(catkin REQUIRED
       octomap_msgs
       octomap_ros
       # octomap_world
-      # voxblox
-      # voxblox_ros
+      voxblox
+      voxblox_ros
         interactive_markers
         moveit_core
         moveit_visual_tools
@@ -97,8 +97,8 @@ catkin_package(
       octomap_msgs
       octomap_ros
       # octomap_world
-      # voxblox
-      # voxblox_ros
+      voxblox
+      voxblox_ros
         moveit_core
         moveit_visual_tools
         moveit_ros_planning_interface
@@ -131,6 +131,10 @@ roslaunch_add_file_check(launch)
 
 add_executable(get_ik_manipulator src/get_ik_manipulator.cpp)
 target_link_libraries(get_ik_manipulator  ${catkin_LIBRARIES}
+                                          ${Boost_LIBRARIES})
+
+add_executable(my_voxblox_planner src/voxblox_planner.cpp)
+target_link_libraries(my_voxblox_planner  ${catkin_LIBRARIES}
                                           ${Boost_LIBRARIES})
 
 # install(TARGETS robowork_base_node

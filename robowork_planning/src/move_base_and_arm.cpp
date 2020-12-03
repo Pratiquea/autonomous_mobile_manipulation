@@ -27,6 +27,13 @@
 #include <geometry_msgs/PoseArray.h>
 #include <iostream>
 #include <array>
+#include "voxblox_planner.cpp"
+#include <random>
+#include <math.h>
+// #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf_conversions/tf_eigen.h>
+#include <tf/transform_datatypes.h>
+
 
 ros::Subscriber base_sub;
 ros::Subscriber arm_sub;
@@ -323,6 +330,55 @@ double getDistanceXY(const geometry_msgs::Pose& a, const geometry_msgs::Pose& b)
     return dist;
 }
 
+tf::Quaternion armToBaseOrientation(geometry_msgs::Pose arm_pose)
+{
+    tf::Quaternion q_orig(arm_pose.orientation.x, arm_pose.orientation.y, arm_pose.orientation.z, arm_pose.orientation.w);
+    tf::Quaternion q_res;
+    tfScalar R,P,Y;
+    tf::Matrix3x3 r_res(q_orig);
+    r_res.getRPY(R,P,Y);
+    q_res.setRPY(0.0,0.0,Y);
+    return q_res;
+}
+
+geometry_msgs::Pose generate_base_location(geometry_msgs::Pose arm_pose, YourPlannerVoxblox& voxblox_ob)
+{
+    //Project cluster_center to ground
+    // cluster_center[2] = 0
+    geometry_msgs::Pose final_base_pose;
+    tf::Quaternion q = armToBaseOrientation(arm_pose);
+    final_base_pose.orientation.x = q.x();
+    final_base_pose.orientation.y = q.y();
+    final_base_pose.orientation.z = q.z();
+    final_base_pose.orientation.w = q.w();
+    double projected_circle_radius = 1.5;
+    Eigen::Vector3d base_pose(arm_pose.position.x, arm_pose.position.y, 0.0);
+    std::default_random_engine generator;
+    std::uniform_real_distribution<double> distribution(0.0,projected_circle_radius);
+    std::uniform_real_distribution<double> dist2(0.0,2.0);
+
+    //  Eigen::Vector3d bp(x,y, 0.5);
+
+    for(int i =0; i<100;i++)
+    {
+        double length = std::sqrt(distribution(generator));
+
+        // Sample point for base location in a circle around the projected cluster_center
+        double angle = M_PI * dist2(generator);
+        double x = base_pose(0) + length * cos(angle);
+        double y = base_pose(1) + length * sin(angle);
+        Eigen::Vector3d bp(x,y, 0.75);
+        double distance = voxblox_ob.getMapDistance(bp);
+        final_base_pose.position.x = bp(0);
+        final_base_pose.position.y = bp(1);
+        final_base_pose.position.z = bp(2);
+        if(distance > 0.7)  return final_base_pose;
+    // print('Fatal: Unable to find a possible base location after 100 tries. Maybe try increasing the projected_circle_radius? Voxblox could also be reporting the collision with the ground. This can be fixed by increasing the base_offset')
+    }
+    ROS_INFO_STREAM("Fatal: Unable to find a possible base location after 100 tries. Maybe try increasing the projected_circle_radius? Voxblox could also be reporting the collision with the ground. This can be fixed by increasing the base_offset");
+    exit(0);
+}
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "uav_launch");
@@ -330,8 +386,8 @@ int main(int argc, char** argv)
     spinner.start();
     ros::NodeHandle node_handle("~"),nh;
     MMPoses baseArmPoses;
-    base_sub = nh.subscribe("/base_goal_poses", 10, &MMPoses::base_cb, &baseArmPoses);
-    arm_sub = nh.subscribe("/arm_goal_poses", 10, &MMPoses::arm_cb, &baseArmPoses);
+    // base_sub = nh.subscribe("/base_goal_poses", 10, &MMPoses::base_cb, &baseArmPoses);
+    arm_sub = nh.subscribe("/viewpoints", 10, &MMPoses::arm_cb, &baseArmPoses);
     PLANNING_GROUP_ = "main_arm_SIM";
     std::string robot_namespace = "bvr_SIM";
     std::string arm_namespace = "main_arm_SIM";
@@ -355,7 +411,7 @@ int main(int argc, char** argv)
     //
     planning_scene_monitor_->startSceneMonitor("move_group/monitored_planning_scene");
 
-   
+    YourPlannerVoxblox voxblox_ob(nh, node_handle);
     
 
     move_group_->setMaxVelocityScalingFactor(0.25);
@@ -381,7 +437,6 @@ int main(int argc, char** argv)
     visual_tools.trigger();
     visual_tools.loadRemoteControl();
 
-    moveit::planning_interface::MoveGroupInterface::Plan my_plan;
     move_group_->setStartState(*move_group_->getCurrentState());
     geometry_msgs::PoseStamped curr_pose = move_group_->getCurrentPose();
     // println("frame of curr pose= ");
@@ -389,58 +444,98 @@ int main(int argc, char** argv)
 
     visual_tools.deleteAllMarkers();
 
-    move_base_msgs::MoveBaseGoal goal_base;
+    // move_base_msgs::MoveBaseGoal goal_base;
     geometry_msgs::PoseStamped goal_pose = curr_pose;
 
-    goal_base.target_pose.header.frame_id = "map";
-    goal_base.target_pose.header.stamp = ros::Time::now();
     
     println("waiting for base and arm poses");
-    println(baseArmPoses.base_poses.poses.empty());
-    while(baseArmPoses.base_poses.poses.empty() && ros::ok())
+    println(baseArmPoses.arm_poses.poses.empty());
+    while(baseArmPoses.arm_poses.poses.empty() && ros::ok())
     {
         println("poses empty? 0 is not empty");
-        println(baseArmPoses.base_poses.poses.empty());
+        println(baseArmPoses.arm_poses.poses.empty());
     }
 
-    if(!baseArmPoses.base_poses.poses.empty())
+    geometry_msgs::PoseArray visited_arm_poses;
+    if(!baseArmPoses.arm_poses.poses.empty())
     {
-        for( auto base_pose : baseArmPoses.base_poses.poses)
-        {
-            goal_base.target_pose.pose.position.x = base_pose.position.x;
-            goal_base.target_pose.pose.position.y = base_pose.position.y;
-            goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
-            goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
-            goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
-            goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
+        // for( auto base_pose : baseArmPoses.base_poses.poses)
+        // {
+        //     goal_base.target_pose.pose.position.x = base_pose.position.x;
+        //     goal_base.target_pose.pose.position.y = base_pose.position.y;
+        //     goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
+        //     goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
+        //     goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
+        //     goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
 
-            ROS_INFO_STREAM("Moving Base to goal: "<< base_pose);
-            move_base_sip(goal_base);
-            ros::Duration(0.5).sleep();
+        //     ROS_INFO_STREAM("Moving Base to goal: "<< base_pose);
+        //     move_base_sip(goal_base);
+        //     // ros::Duration(0.5).sleep();
 
             for( auto arm_pose : baseArmPoses.arm_poses.poses)
             {
-                ROS_INFO_STREAM("Moving arm to goal: "<< arm_pose);
-                if(getDistanceXY(base_pose,arm_pose) < 0.65)
-                {
-                    goal_pose.pose= arm_pose;
+                geometry_msgs::Pose base_pose = generate_base_location(arm_pose,voxblox_ob);
+                move_base_msgs::MoveBaseGoal goal_base;
+                goal_base.target_pose.header.frame_id = "map";
+                goal_base.target_pose.header.stamp = ros::Time::now();
+                goal_base.target_pose.pose.position.x = base_pose.position.x;
+                goal_base.target_pose.pose.position.y = base_pose.position.y;
+                goal_base.target_pose.pose.position.z = 0.0;
+                goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
+                goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
+                goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
+                goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
+                visual_tools.publishCuboid(base_pose, 0.05, 0.05, 0.05, rviz_visual_tools::colors::RED);
+                visual_tools.trigger();
+                visual_tools.deleteAllMarkers();
+                ROS_INFO_STREAM("Moving arm to goal: "<< goal_base.target_pose.pose);
+                move_base_sip(goal_base);
 
-                    move_group_->setGoalOrientationTolerance(M_PI_4);
-                    move_group_->setGoalPositionTolerance(0.2);
-                    move_group_->setPoseTarget(goal_pose);
-                    success = (move_group_->plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-                    if(success)
-                    {
-                        // visual_tools.prompt("Found solution Press 'next'to execute trajectory");
-                        ROS_INFO_STREAM("plan success for arm pose" << arm_pose);
-                        // visual_tools.trigger();
-                        ros::Duration(0.3).sleep();
-                        move_group_->move();
-                        ros::Duration(1).sleep();
-                    }
+
+                // if(getDistanceXY(base_pose,arm_pose) < 0.7)
+                // {
+                //     if(visited_arm_poses.poses.empty())
+                //     {
+                //         visited_arm_poses.poses.push_back(arm_pose);
+                //     }
+                //     else
+                //     {
+                //         for(auto each_arm_pose : visited_arm_poses.poses)
+                //         {
+                //             if(each_arm_pose == arm_pose) goto next_iteration;
+                //         }
+                //         visited_arm_poses.poses.push_back(arm_pose);
+                //     }
+                    
+                ROS_INFO_STREAM("Moving arm to goal: "<< arm_pose);
+                moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+                move_group_->setStartState(*move_group_->getCurrentState());
+                goal_pose.pose = arm_pose;
+                goal_pose.header.stamp = ros::Time::now();
+                goal_pose.header.frame_id = "map";
+
+                move_group_->setGoalOrientationTolerance(0.349066);
+                move_group_->setGoalPositionTolerance(0.1);
+                move_group_->setPoseTarget(goal_pose);
+                visual_tools.publishCuboid(goal_pose.pose, 0.05, 0.05, 0.05);
+                visual_tools.trigger();
+                visual_tools.deleteAllMarkers();
+
+                success = (move_group_->plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+                if(success)
+                {
+                    ROS_INFO_STREAM("plan success for arm pose" << arm_pose);
+                    // visual_tools.trigger();
+                    // ros::Duration(0.3).sleep();
+                    visual_tools.prompt("Found solution Press 'next'to execute trajectory");
+                    move_group_->execute(my_plan);
+                    // ros::Duration(1).sleep();
+                    visual_tools.prompt("Trajectory executed, Press 'next'to continue");
                 }
+                // }
+                // next_iteration: ;
             }
-        }
+        // }
     }
     // visual_tools.prompt("Press 'next' to delete markers");
 

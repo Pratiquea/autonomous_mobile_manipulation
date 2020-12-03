@@ -39,8 +39,8 @@
    <build_depend>octomap_msgs</build_depend>
    <build_depend>octomap_ros</build_depend>
    <!-- <build_depend>octomap_world</build_depend> -->
-   <!-- <build_depend>voxblox</build_depend>
-   <build_depend>voxblox_ros</build_depend> -->
+   <build_depend>voxblox</build_depend>
+   <build_depend>voxblox_ros</build_depend>
       <build_depend>pluginlib</build_depend>
       <build_depend>eigen</build_depend>
       <build_depend>moveit_core</build_depend>
@@ -84,8 +84,8 @@
    <exec_depend>octomap_msgs</exec_depend>
    <exec_depend>octomap_ros</exec_depend>
    <!-- <exec_depend>octomap_world</exec_depend> -->
-   <!-- <exec_depend>voxblox</exec_depend>
-   <exec_depend>voxblox_ros</exec_depend> -->
+   <exec_depend>voxblox</exec_depend>
+   <exec_depend>voxblox_ros</exec_depend>
       <exec_depend>pluginlib</exec_depend>
       <exec_depend>moveit_core</exec_depend>
       <exec_depend>moveit_commander</exec_depend>
