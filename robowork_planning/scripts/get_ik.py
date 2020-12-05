@@ -10,6 +10,7 @@ from moveit_msgs.srv import GetPositionIKResponse
 from moveit_msgs.srv import GetPositionFK
 from moveit_msgs.srv import GetPositionFKRequest
 from moveit_msgs.srv import GetPositionFKResponse
+from moveit_msgs.msg import MoveItErrorCodes
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Pose
 from std_msgs.msg import Header
@@ -79,6 +80,13 @@ class GetFK(object):
 
 
 
+
+def initPoseStamped():
+    ps = PoseStamped()
+    ps.pose.position.x = 0.0
+    ps.pose.position.y = 0.0
+    ps.pose.position.z = 0.0
+    return ps
 class GetIK(object):
     def __init__(self, group, ik_timeout=1.0, ik_attempts=0,
                  avoid_collisions=False):
@@ -106,6 +114,7 @@ class GetIK(object):
         print("Connected!")
 
     def get_ik(self, pose_stamped,
+               base_pose_stamped = initPoseStamped(),
                group=None,
                ik_timeout=None,
                ik_attempts=None,
@@ -128,9 +137,17 @@ class GetIK(object):
             ik_attempts = self.ik_attempts
         if avoid_collisions is None:
             avoid_collisions = self.avoid_collisions
+
+        goal_pose_stamped = PoseStamped()
+        goal_pose_stamped.pose.position.x = pose_stamped.pose.position.x - base_pose_stamped.pose.position.x
+        goal_pose_stamped.pose.position.y = pose_stamped.pose.position.y - base_pose_stamped.pose.position.y
+        goal_pose_stamped.pose.position.z = pose_stamped.pose.position.z - base_pose_stamped.pose.position.z
+        goal_pose_stamped.pose.orientation = pose_stamped.pose.orientation
+        goal_pose_stamped.header = pose_stamped.header
+        print("goal pose = ",goal_pose_stamped.pose.position)
         req = GetPositionIKRequest()
         req.ik_request.group_name = group
-        req.ik_request.pose_stamped = pose_stamped
+        req.ik_request.pose_stamped = goal_pose_stamped
         req.ik_request.timeout = rospy.Duration(ik_timeout)
         # req.ik_request.attempts = ik_attempts
         req.ik_request.avoid_collisions = avoid_collisions
@@ -150,37 +167,59 @@ def main():
     # print("planning group = ", PLANNING_GROUP_)
     
     rospy.loginfo("Querying for FK")
-    gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'bvr_SIM/base_link')
+    # gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'bvr_SIM/base_link')
+    gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'map')
     resp = gfk.get_current_fk()
+    print("####################################")
     print("fk solution", resp.pose_stamped[0].pose)
     print("fk solution frame id", resp.pose_stamped[0].header.frame_id)
-    
+    print("####################################")
+    print("\n\n\n")
+    print("####################################")
     
     
     ik_ob = GetIK(group=PLANNING_GROUP_)
     point3d = PoseStamped()
     point3d.header.frame_id = 'map'
     # point3d.header.frame_id = 'bvr_SIM/bvr_base_link'
-    point3d.pose.position.x = 0.745
-    point3d.pose.position.y = -0.13
-    point3d.pose.position.z = 0.86
-    point3d.pose.orientation.w = 0.999986455466
-    point3d.pose.orientation.x = -0.000981840090629
-    point3d.pose.orientation.y = 0.0049986801065
-    point3d.pose.orientation.z = 0.00106680414674
+    base_pos = PoseStamped()
+    base_pos.header = point3d.header
+    base_pos.pose.position.x = 1.0
+    base_pos.pose.position.y = 1.0
+    base_pos.pose.position.z = 1.0
+
+    point3d.pose.position.x = 0.631212990079 + base_pos.pose.position.x
+    point3d.pose.position.y = -0.1322317738 + base_pos.pose.position.y
+    point3d.pose.position.z = 0.760689959739 + base_pos.pose.position.z
+    point3d.pose.orientation.w = -0.00116679325101
+    point3d.pose.orientation.x = 0.117537913367
+    point3d.pose.orientation.y = 0.000954930466556
+    point3d.pose.orientation.z = 0.993067251309
+
+
     
 
+#   x: 0.631212990079
+#   y: -0.1322317738
+#   z: 0.760689959739
+# orientation: 
+#   x: -0.00116679325101
+#   y: 0.117537913367
+#   z: 0.000954930466556
+#   w: 0.993067251309
 
 
 
     # print("point = ", point3d)
     
-    response = ik_ob.get_ik(point3d)
+    response = ik_ob.get_ik(point3d, base_pos)
     print("ik response code", response.error_code)
-    if(response.error_code == 1):
+    if(response.error_code.val == MoveItErrorCodes.SUCCESS):
         print("ik found\n")
     else:
         print("No solution found ")
+
+    print("####################################")
 
 
 
