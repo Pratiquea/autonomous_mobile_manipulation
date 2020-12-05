@@ -66,7 +66,7 @@ class GetFK(object):
             fk_link = self.fk_link
 
         req = GetPositionFKRequest()
-        req.header.frame_id = 'base_link'
+        req.header.frame_id = self.frame_id
         req.fk_link_names = [self.fk_link]
         req.robot_state.joint_state = joint_state
         try:
@@ -141,7 +141,7 @@ class GetIK(object):
         goal_pose_stamped = PoseStamped()
         goal_pose_stamped.pose.position.x = pose_stamped.pose.position.x - base_pose_stamped.pose.position.x
         goal_pose_stamped.pose.position.y = pose_stamped.pose.position.y - base_pose_stamped.pose.position.y
-        goal_pose_stamped.pose.position.z = pose_stamped.pose.position.z - base_pose_stamped.pose.position.z
+        goal_pose_stamped.pose.position.z = pose_stamped.pose.position.z
         goal_pose_stamped.pose.orientation = pose_stamped.pose.orientation
         goal_pose_stamped.header = pose_stamped.header
         print("goal pose = ",goal_pose_stamped.pose.position)
@@ -166,15 +166,15 @@ def main():
     # rospy.loginfo("node started")
     # print("planning group = ", PLANNING_GROUP_)
     
-    rospy.loginfo("Querying for FK")
-    # gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'bvr_SIM/base_link')
-    gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'map')
-    resp = gfk.get_current_fk()
-    print("####################################")
-    print("fk solution", resp.pose_stamped[0].pose)
-    print("fk solution frame id", resp.pose_stamped[0].header.frame_id)
-    print("####################################")
-    print("\n\n\n")
+    # rospy.loginfo("Querying for FK")
+    # # gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'bvr_SIM/base_link')
+    # gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'map')
+    # resp = gfk.get_current_fk()
+    # print("####################################")
+    # print("fk solution", resp.pose_stamped[0].pose)
+    # print("fk solution frame id", resp.pose_stamped[0].header.frame_id)
+    # print("####################################")
+    # print("\n\n\n")
     print("####################################")
     
     
@@ -184,42 +184,34 @@ def main():
     # point3d.header.frame_id = 'bvr_SIM/bvr_base_link'
     base_pos = PoseStamped()
     base_pos.header = point3d.header
-    base_pos.pose.position.x = 1.0
-    base_pos.pose.position.y = 1.0
-    base_pos.pose.position.z = 1.0
+    base_pos.pose.position.x = 0.0
+    base_pos.pose.position.y = 0.0
+    base_pos.pose.position.z = 0.0
+    base_pos.pose.orientation.w = 1.0
 
-    point3d.pose.position.x = 0.631212990079 + base_pos.pose.position.x
+    point3d.pose.position.x = 0.631212990079 + base_pos.pose.position.x 
     point3d.pose.position.y = -0.1322317738 + base_pos.pose.position.y
-    point3d.pose.position.z = 0.760689959739 + base_pos.pose.position.z
-    point3d.pose.orientation.w = -0.00116679325101
-    point3d.pose.orientation.x = 0.117537913367
-    point3d.pose.orientation.y = 0.000954930466556
-    point3d.pose.orientation.z = 0.993067251309
-
-
-    
-
-#   x: 0.631212990079
-#   y: -0.1322317738
-#   z: 0.760689959739
-# orientation: 
-#   x: -0.00116679325101
-#   y: 0.117537913367
-#   z: 0.000954930466556
-#   w: 0.993067251309
-
-
-
-    # print("point = ", point3d)
+    point3d.pose.position.z = 0.760689959739 + 0.5
+    point3d.pose.orientation.x = -0.00116679325101
+    point3d.pose.orientation.y = 0.117537913367
+    point3d.pose.orientation.z = 0.000954930466556
+    point3d.pose.orientation.w = 0.993067251309
     
     response = ik_ob.get_ik(point3d, base_pos)
-    print("ik response code", response.error_code)
+    # print("ik response code", response.error_code)
     if(response.error_code.val == MoveItErrorCodes.SUCCESS):
         print("ik found\n")
     else:
         print("No solution found ")
 
     print("####################################")
+    arm_pub =  rospy.Publisher('arm_pub', PoseStamped ,queue_size=10)
+    base_pub =  rospy.Publisher('base_pub', PoseStamped ,queue_size=10)
+    rate = rospy.Rate(10)
+    while(not rospy.is_shutdown()):
+        arm_pub.publish(point3d)
+        base_pub.publish(base_pos)
+        rate.sleep()
 
 
 
