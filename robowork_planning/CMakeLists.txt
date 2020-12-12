@@ -133,9 +133,12 @@ add_executable(get_ik_manipulator src/get_ik_manipulator.cpp)
 target_link_libraries(get_ik_manipulator  ${catkin_LIBRARIES}
                                           ${Boost_LIBRARIES})
 
-add_executable(my_voxblox_planner src/voxblox_planner.cpp)
-target_link_libraries(my_voxblox_planner  ${catkin_LIBRARIES}
-                                          ${Boost_LIBRARIES})
+# add_executable(my_voxblox_planner src/voxblox_planner.cpp)
+# target_link_libraries(my_voxblox_planner  ${catkin_LIBRARIES}
+#                                           ${Boost_LIBRARIES})
+
+add_executable(move_base_arm src/move_base_and_arm.cpp)
+target_link_libraries(move_base_arm ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # install(TARGETS robowork_base_node
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

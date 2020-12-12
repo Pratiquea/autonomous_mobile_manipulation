@@ -385,9 +385,9 @@ int main(int argc, char** argv)
     ros::AsyncSpinner spinner(1);
     spinner.start();
     ros::NodeHandle node_handle("~"),nh;
-    MMPoses baseArmPoses;
-    // base_sub = nh.subscribe("/base_goal_poses", 10, &MMPoses::base_cb, &baseArmPoses);
-    arm_sub = nh.subscribe("/viewpoints", 10, &MMPoses::arm_cb, &baseArmPoses);
+    MMPoses ArmBasePairs;
+    base_sub = nh.subscribe("/base_goal_poses", 10, &MMPoses::base_cb, &ArmBasePairs);
+    arm_sub = nh.subscribe("/viewpoints", 10, &MMPoses::arm_cb, &ArmBasePairs);
     PLANNING_GROUP_ = "main_arm_SIM";
     std::string robot_namespace = "bvr_SIM";
     std::string arm_namespace = "main_arm_SIM";
@@ -444,54 +444,36 @@ int main(int argc, char** argv)
 
     visual_tools.deleteAllMarkers();
 
-    // move_base_msgs::MoveBaseGoal goal_base;
+    move_base_msgs::MoveBaseGoal goal_base;
     geometry_msgs::PoseStamped goal_pose = curr_pose;
 
     
     println("waiting for base and arm poses");
-    println(baseArmPoses.arm_poses.poses.empty());
-    while(baseArmPoses.arm_poses.poses.empty() && ros::ok())
+    println(ArmBasePairs.arm_poses.poses.empty());
+    while(ArmBasePairs.arm_poses.poses.empty() && ros::ok())
     {
         println("poses empty? 0 is not empty");
-        println(baseArmPoses.arm_poses.poses.empty());
+        println(ArmBasePairs.arm_poses.poses.empty());
     }
 
     geometry_msgs::PoseArray visited_arm_poses;
-    if(!baseArmPoses.arm_poses.poses.empty())
+    if(!ArmBasePairs.arm_poses.poses.empty())
     {
-        // for( auto base_pose : baseArmPoses.base_poses.poses)
-        // {
-        //     goal_base.target_pose.pose.position.x = base_pose.position.x;
-        //     goal_base.target_pose.pose.position.y = base_pose.position.y;
-        //     goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
-        //     goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
-        //     goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
-        //     goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
+        for( auto base_pose : ArmBasePairs.base_poses.poses)
+        {
+            goal_base.target_pose.pose.position.x = base_pose.position.x;
+            goal_base.target_pose.pose.position.y = base_pose.position.y;
+            goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
+            goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
+            goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
+            goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
 
-        //     ROS_INFO_STREAM("Moving Base to goal: "<< base_pose);
-        //     move_base_sip(goal_base);
-        //     // ros::Duration(0.5).sleep();
+            ROS_INFO_STREAM("Moving Base to goal: "<< base_pose);
+            move_base_sip(goal_base);
+            // ros::Duration(0.5).sleep();
 
-            for( auto arm_pose : baseArmPoses.arm_poses.poses)
+            for( auto arm_pose : ArmBasePairs.arm_poses.poses)
             {
-                geometry_msgs::Pose base_pose = generate_base_location(arm_pose,voxblox_ob);
-                move_base_msgs::MoveBaseGoal goal_base;
-                goal_base.target_pose.header.frame_id = "map";
-                goal_base.target_pose.header.stamp = ros::Time::now();
-                goal_base.target_pose.pose.position.x = base_pose.position.x;
-                goal_base.target_pose.pose.position.y = base_pose.position.y;
-                goal_base.target_pose.pose.position.z = 0.0;
-                goal_base.target_pose.pose.orientation.x = base_pose.orientation.x;
-                goal_base.target_pose.pose.orientation.y = base_pose.orientation.y;
-                goal_base.target_pose.pose.orientation.z = base_pose.orientation.z;
-                goal_base.target_pose.pose.orientation.w = base_pose.orientation.w;
-                visual_tools.publishCuboid(base_pose, 0.05, 0.05, 0.05, rviz_visual_tools::colors::RED);
-                visual_tools.trigger();
-                visual_tools.deleteAllMarkers();
-                ROS_INFO_STREAM("Moving arm to goal: "<< goal_base.target_pose.pose);
-                move_base_sip(goal_base);
-
-
                 // if(getDistanceXY(base_pose,arm_pose) < 0.7)
                 // {
                 //     if(visited_arm_poses.poses.empty())
@@ -535,7 +517,7 @@ int main(int argc, char** argv)
                 // }
                 // next_iteration: ;
             }
-        // }
+        }
     }
     // visual_tools.prompt("Press 'next' to delete markers");
 
