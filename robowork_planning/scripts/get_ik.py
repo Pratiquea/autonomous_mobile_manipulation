@@ -15,7 +15,8 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import PoseStamped, Pose
 from std_msgs.msg import Header
 import numpy as np
-from tf.transformations import *
+# from tf.transformations import *
+# from pyquaternion import Quaternion
 
 class GetFK(object):
     def __init__(self, fk_link, frame_id):
@@ -34,7 +35,7 @@ class GetFK(object):
                                          GetPositionFK)
         rospy.loginfo("Waiting for /compute_fk service...")
         self.fk_srv.wait_for_service()
-        rospy.loginfo("Connected!")
+        # rospy.loginfo("Connected!")
         self.last_js = None
         self.js_sub = rospy.Subscriber('bvr_SIM/joint_states',
                                        JointState,
@@ -136,21 +137,16 @@ def getPoseFromBaseWaypoint(waypoint):
     base_position_vec = waypoint[0:3]
     base_orientation_vec = waypoint[3:]
     z_theta = getZRotation(base_orientation_vec)
-    q = random_quaternion(np.random.random(3))
-    q[0] = 0.0  #x
-    q[1] = 0.0  #y
-    q[2] = np.sin(z_theta/2)  #z
-    q[3] = np.cos(z_theta/2)  #w 
 
     base_pos = PoseStamped()
     base_pos.header.frame_id = "map"
     base_pos.pose.position.x = base_position_vec[0]
     base_pos.pose.position.y = base_position_vec[1]
     base_pos.pose.position.z = base_position_vec[2]
-    base_pos.pose.orientation.x = q[0]
-    base_pos.pose.orientation.y = q[1]
-    base_pos.pose.orientation.z = q[2]
-    base_pos.pose.orientation.w = q[3]
+    base_pos.pose.orientation.x = 0.0
+    base_pos.pose.orientation.y = 0.0
+    base_pos.pose.orientation.z = np.sin(z_theta/2)
+    base_pos.pose.orientation.w = np.cos(z_theta/2)
     return base_pos
 
 class GetIK(object):
@@ -164,7 +160,7 @@ class GetIK(object):
         :param bool avoid_collisions: if to ask for IKs that take
         into account collisions
         """
-        print("Initalizing GetIK...")
+        # print("Initalizing GetIK...")
         self.group_name = group
         self.ik_timeout = ik_timeout
         self.ik_attempts = ik_attempts
@@ -177,7 +173,7 @@ class GetIK(object):
         self.ik_srv = rospy.ServiceProxy('bvr_SIM/compute_ik',GetPositionIK)
         print("Waiting for /compute_ik service...")
         self.ik_srv.wait_for_service()
-        print("Connected!")
+        # print("Connected!")
 
     def get_ik(self, pose_stamped,
                base_pose_stamped = initPoseStamped(),
@@ -217,7 +213,8 @@ class GetIK(object):
         req.ik_request.timeout = rospy.Duration(ik_timeout)
         # req.ik_request.attempts = ik_attempts
         req.ik_request.avoid_collisions = avoid_collisions
-
+        print("robowork wali file")
+        
         try:
             resp = self.ik_srv.call(req)
             return resp
@@ -234,15 +231,15 @@ def main():
     base_pub = rospy.Publisher("base_pose",PoseStamped,queue_size=5)
     arm_pub = rospy.Publisher("arm_pose",PoseStamped,queue_size=5)
     
-    # rospy.loginfo("Querying for FK")
-    # gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'map')
-    # resp = gfk.get_current_fk()
-    # print("####################################")
-    # print("fk solution", resp.pose_stamped[0].pose)
-    # print("fk solution frame id", resp.pose_stamped[0].header.frame_id)
-    # print("####################################")
-    # print("\n\n\n")
-    # print("####################################")
+    rospy.loginfo("Querying for FK")
+    gfk = GetFK('bvr_SIM/main_arm_SIM/gripper_manipulation_link', 'map')
+    resp = gfk.get_current_fk()
+    print("####################################")
+    print("fk solution", resp.pose_stamped[0].pose)
+    print("fk solution frame id", resp.pose_stamped[0].header.frame_id)
+    print("####################################")
+    print("\n\n\n")
+    print("####################################")
     
     # initilizing IK object
     ik_ob = GetIK(group=PLANNING_GROUP_)
@@ -276,7 +273,7 @@ def main():
     # print("point = ", arm_pose)
     
     response = ik_ob.get_ik(arm_pose, base_pos)
-    print("ik response code", response.error_code)
+    # print("ik response code", response.error_code)
     if(response.error_code.val == MoveItErrorCodes.SUCCESS):
         print("ik found\n")
     else:
